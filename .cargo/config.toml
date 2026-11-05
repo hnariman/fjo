@@ -1,0 +1,3 @@
+# cargo xtask release — the alias
+[alias]
+xtask = "run -p xtask --release --"
