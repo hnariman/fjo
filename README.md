@@ -36,16 +36,18 @@ Forgejo's RPM package registry serves the repo directly — add it once, then
 
 ```sh
 # fedora builds:
-dnf config-manager addrepo --from-repofile=https://git.home/api/packages/hnariman/rpm.repo
+sudo dnf config-manager addrepo --from-repofile=https://git.home/api/packages/hnariman/rpm.repo
 # rocky / alma 9 builds (separate glibc-compatible artifacts):
-dnf config-manager addrepo --from-repofile=https://git.home/api/packages/hnariman/rpm/el9.repo
+sudo dnf config-manager addrepo --from-repofile=https://git.home/api/packages/hnariman/rpm/el9.repo
 
-dnf install fjo
+sudo dnf install fjo
 ```
 
-The registry is best-effort unsigned (Forgejo does not batch-sign packages), so
-`gpgcheck=0` comes from the generated `.repo` file — fine on a private/self-hosted forge
-but review it if you point this flow at a public URL.
+The generated `.repo` file sets `gpgcheck=1` and points `gpgkey=` at the signing
+key xtask publishes (`fjo-release`, exported from `~/.local/share/fjo/gnupg`).
+dnf prompts to import the key on first install — accept it once and the repo is
+trusted thereafter. Fine on a private/self-hosted forge; review if you point this
+flow at a public URL.
 
 The RPM contains the size-optimized binary plus the agent skill:
 
@@ -57,10 +59,9 @@ The RPM contains the size-optimized binary plus the agent skill:
 
 Because fjo links glibc dynamically, builds are produced **per distro** and land in
 separate registry groups — do not cross-install: an `el9` rpm on Fedora under-performs
-its capabilities and a `fc` rpm outright fails on Rocky 9. The Forgejo Actions workflow
-(`.forgejo/workflows/release.yml`, triggered by a `v*` tag) builds the matrix
-`fedora:latest` → no-group registry, `rockylinux:9` → `el9` group, publishes both via
-`scripts/publish.sh` and attaches artifacts to the tag's release page.
+its capabilities and a `fc` rpm outright fails on Rocky 9. Releases are driven locally
+via xtask (below): run it on each distro family or a matching container and pass
+`--group el9` on the Rocky/Alma side.
 
 ### From source
 
@@ -206,21 +207,26 @@ src/key.rs                Key struct: key path resolution, auto-detection, ssh-k
 src/git.rs                Git struct: git operations via GIT_SSH_COMMAND
 src/status.rs             preflight snapshot (keys, git, ssh-keygen, sshpass)
 fjo.spec                  rpm packaging spec (prebuilt-binary tarball)
-scripts/package.sh        stages release binary + skill and runs rpmbuild
-scripts/publish.sh        pushes rpm to the forgejo registry + release page
-.forgejo/workflows/       release ci: per-distro build matrix, publish on v* tags
+xtask                     release tooling: cargo xtask package | release | check
 plugin.json               portable Agent Plugins v1 manifest (Hermes plugin discovery)
 skills/fjo/SKILL.md       agent-facing skill: command reference, exit codes, bootstrap
 skills/fjo/scripts/       install.sh — cargo build + PATH install bootstrap
 ```
 
-Local release flow:
+Release flow (drives rpm packaging + forgejo publishing locally, no CI needed):
 
 ```sh
-cargo build --release     # any host: binary, or for rpm:
-scripts/package.sh        # builds fjo-<v>-1.<dist>.<arch>.rpm into target/rpm/
-scripts/publish.sh target/rpm/fjo-*.rpm   # needs FORGEJO_TOKEN
+cargo xtask package                      # build binary + rpm into target/rpm/
+cargo xtask release                      # package + publish (needs FORGEJO_TOKEN)
+cargo xtask --no-build release           # publish an already-built rpm
+cargo xtask --group el9 release          # rocky/alma builds -> el9 registry group
+cargo xtask check                        # version sync only, no side effects
 ```
+
+Published settings default to `https://git.home` / owner `hnariman`; override with
+`--forgejo-url` / `--owner` / `--group` or the matching `FORGEJO_*` env vars. The
+release is tagged by the version (`v`-less): make sure it matches the version git tag
+you pushed.
 
 ## Design notes
 
