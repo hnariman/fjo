@@ -1,0 +1,15 @@
+[package]
+name = "fjo"
+version = "0.1.0"
+edition = "2024"
+
+[profile.release]
+opt-level = "z"     # optimize for size
+lto = true          # whole-program optimization, better dead-code elimination
+codegen-units = 1   # single cg unit, more inlining + smaller output
+panic = "abort"     # no unwinding tables or landing pads
+strip = "symbols"   # no debug or extra symbols baked in
+
+[dependencies]
+anyhow = "1.0.104"
+clap = { version = "4.6.7", features = ["derive"] }
