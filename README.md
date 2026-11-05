@@ -109,6 +109,45 @@ The manifest and skill are pinned by a test (`plugin_manifest_matches_code`): ve
 the closed v1 schema fields, `SKILL.md` frontmatter and the bootstrap script are
 validated against the code — bumping `Cargo.toml` without touching `plugin.json` fails CI.
 
+### Sharing the skill with other agents
+
+The skill is a single portable markdown file — everything an agent needs lives in
+`skills/fjo/SKILL.md`. Pick whichever route fits the target agent:
+
+**From a checkout of this repo** (works everywhere, no install needed):
+
+```sh
+git clone https://git.home/hnariman/fjo fjo
+mkdir -p ~/.hermes/skills
+cp fjo/skills/fjo/SKILL.md ~/.hermes/skills/fjo/SKILL.md
+```
+
+**From the RPM** (skill ships on disk, just link it):
+
+```sh
+mkdir -p ~/.hermes/skills
+ln -s /usr/share/fjo/skills/fjo ~/.hermes/skills/fjo
+```
+
+**Hermes plugin install** (other Hermes users on this forge):
+
+```sh
+hermes plugins install git.home:hnariman/fjo --no-enable
+hermes plugins enable fjo
+```
+
+**Any other agent harness** — the file is self-contained; paste it into the agent's
+context or drop it in that harness's skills directory. Common paths:
+
+| Harness | Skill directory |
+|---|---|
+| Hermes | `~/.hermes/skills/fjo/` |
+| Claude Code | `~/.claude/skills/fjo/` |
+| OpenCode / Codex | that harness's skills dir |
+
+Keep the `description:` frontmatter line intact and under ~60 characters — skill
+indexes match agents on its first sentence; trimming it silently breaks discovery.
+
 ## Usage
 
 ### Keys

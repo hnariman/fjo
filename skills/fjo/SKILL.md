@@ -11,9 +11,17 @@ description: Create passwordless ssh keys and clone git repositories without eve
 `fjo` is a non-interactive git/ssh helper. Every command completes or fails cleanly.
 **Never expects stdin; never hangs waiting for a human.**
 
-If that fails, install it — both paths end on `PATH` as `fjo`:
+## Bootstrap (only once, only if missing)
 
-Fedora / Alma / Rocky (dnf repo hosted on Forgejo):
+Check whether the binary exists:
+
+```sh
+fjo --version
+```
+
+If it's missing, install it — same result on different hosts:
+
+**Fedora / Alma / Rocky** (dnf repo hosted on Forgejo):
 
 ```sh
 # fedora:
@@ -23,14 +31,14 @@ dnf config-manager addrepo --from-repofile=https://git.home/api/packages/hnarima
 dnf install fjo
 ```
 
-Any host with rust/cargo:
+**Any host with rust/cargo:**
 
 ```sh
 cargo install --git https://git.home/hnariman/fjo.git
 ```
 
-Requires either the dnf repo (no rust needed) or rust on the host. Verify with
-`fjo --version` afterwards.</think><tool_call>edit<arg_key>newString</arg_key><arg_value>## Bootstrap (only once, only if missing)
+Verify with `fjo --version` afterwards. If the RPM was installed, this skill file
+already exists on disk (`/usr/share/fjo/skills/fjo/SKILL.md`) and nothing else is needed.</think><tool_call>edit<arg_key>newString</arg_key><arg_value>## Bootstrap (only once, only if missing)
 
 Check whether the binary exists:
 
