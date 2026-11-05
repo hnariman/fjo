@@ -175,39 +175,57 @@ mod tests {
         assert!(cli.json);
     }
 
-    /// The manifest is the agent-facing contract; drift silently breaks
-    /// agents, so version and command surface are pinned by tests.
+    /// The portable plugin manifest is the agent-facing contract; drift
+    /// silently breaks agents, so version/compliance are pinned by tests.
     #[test]
-    fn hermes_manifest_matches_code() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("hermes.json");
-        let raw =
-            fs::read_to_string(&path).expect("hermes.json must sit next to Cargo.toml");
-        let manifest: serde_json::Value = serde_json::from_str(&raw).expect("manifest must be valid json");
+    fn plugin_manifest_matches_code() {
+        use std::path::Path;
 
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+
+        let raw = fs::read_to_string(root.join("plugin.json"))
+            .expect("plugin.json must sit next to Cargo.toml");
+        let manifest: serde_json::Value =
+            serde_json::from_str(&raw).expect("plugin.json must be valid json");
+
+        assert_eq!(
+            manifest["$schema"],
+            "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+        );
         assert_eq!(manifest["name"], "fjo");
         assert_eq!(manifest["version"], env!("CARGO_PKG_VERSION"));
-        assert_eq!(manifest["non_interactive"], true);
-
-        let commands: Vec<&str> = manifest["commands"]
-            .as_array()
-            .expect("commands array")
-            .iter()
-            .filter_map(|c| c["name"].as_str())
-            .collect();
-        for expected in ["setup", "clone", "status"] {
+        // closed manifest schema: these are the only legal top-level fields
+        for field in manifest.as_object().expect("manifest object").keys() {
             assert!(
-                commands.contains(&expected),
-                "manifest must declare the `{expected}` command"
+                [
+                    "$schema",
+                    "name",
+                    "version",
+                    "description",
+                    "author",
+                    "homepage",
+                    "repository",
+                    "license",
+                    "keywords",
+                    "extensions",
+                ]
+                .contains(&field.as_str()),
+                "unknown top-level field `{field}` violates the closed spec"
             );
         }
 
-        let globals: Vec<&str> = manifest["globals"]
-            .as_array()
-            .map(|arr| arr.iter().filter_map(|c| c["arg"].as_str()).collect())
-            .unwrap_or_default();
+        let skill = fs::read_to_string(root.join("skills/fjo/SKILL.md"))
+            .expect("skills/fjo/SKILL.md must exist (fixed discovery location)");
         assert!(
-            globals.iter().any(|g| g.contains("--json")),
-            "manifest must declare the --json global"
+            skill.starts_with("---\n") && skill.contains("name: fjo"),
+            "SKILL.md must carry agent-skills frontmatter with name: fjo"
+        );
+
+        let install = fs::read_to_string(root.join("skills/fjo/scripts/install.sh"))
+            .expect("bootstrap installer must ship with the skill");
+        assert!(
+            install.contains("cargo build --release"),
+            "installer builds the rust binary"
         );
     }
 }

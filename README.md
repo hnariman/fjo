@@ -29,6 +29,39 @@ and a manifest that describes everything the CLI can do.
 
 ## Install
 
+### Install with dnf (fedora / alma / rocky)
+
+Forgejo's RPM package registry serves the repo directly — add it once, then
+`dnf install` like any other package:
+
+```sh
+# fedora builds:
+dnf config-manager addrepo --from-repofile=https://git.home/api/packages/hnariman/rpm.repo
+# rocky / alma 9 builds (separate glibc-compatible artifacts):
+dnf config-manager addrepo --from-repofile=https://git.home/api/packages/hnariman/rpm/el9.repo
+
+dnf install fjo
+```
+
+The registry is best-effort unsigned (Forgejo does not batch-sign packages), so
+`gpgcheck=0` comes from the generated `.repo` file — fine on a private/self-hosted forge
+but review it if you point this flow at a public URL.
+
+The RPM contains the size-optimized binary plus the agent skill:
+
+| Path | What |
+|---|---|
+| `/usr/bin/fjo` | the stripped release binary |
+| `/usr/share/fjo/skills/fjo/SKILL.md` | agent skill file (agents copy or point at it, no repo checkout needed) |
+| `/usr/share/fjo/skills/fjo/scripts/install.sh` | cargo bootstrap for non-rpm hosts |
+
+Because fjo links glibc dynamically, builds are produced **per distro** and land in
+separate registry groups — do not cross-install: an `el9` rpm on Fedora under-performs
+its capabilities and a `fc` rpm outright fails on Rocky 9. The Forgejo Actions workflow
+(`.forgejo/workflows/release.yml`, triggered by a `v*` tag) builds the matrix
+`fedora:latest` → no-group registry, `rockylinux:9` → `el9` group, publishes both via
+`scripts/publish.sh` and attaches artifacts to the tag's release page.
+
 ### From source
 
 ```sh
@@ -49,30 +82,31 @@ Then `fjo --version` works from anywhere.
 
 ### Register with Hermes
 
-Point your Hermes manifest loader at [`hermes.json`](./hermes.json) — or copy it next to
-your other tool manifests. It declares:
+fjo ships as a portable [Agent Plugins v1](https://agent-plugins.org/specification)
+package — no Python needed — so it installs with Hermes' plugin workflow:
 
-```json
-{
-  "name": "fjo",
-  "version": "0.1.0",
-  "bin": "target/release/fjo",
-  "non_interactive": true,
-  "exit_codes": { "0": "success", "1": "operation failed", "2": "usage error" }
-}
+```sh
+hermes plugins install <owner>/fjo --no-enable   # clone from a git remote
+hermes plugins enable fjo                        # activate skills in sessions
 ```
 
-| Key | Meaning |
-|---|---|
-| `bin` | executable Hermes should invoke |
-| `non_interactive` | the tool never prompts; failures are errors, not questions |
-| `exit_codes` | `0` success · `1` operation failed (stderr text or `--json` error object) · `2` argument-parsing error |
-| `globals` | `--json`, valid before or after the subcommand |
-| `commands` | `setup`, `clone`, `status` with full arg schemas |
+The layout it reads:
 
-The manifest is pinned by a test (`hermes_manifest_matches_code`), so version and command
-names can't drift from the code — if you bump `Cargo.toml`, update `hermes.json` in the
-same commit or CI fails.
+```
+plugin.json                      portable v1 manifest ($schema, name, version,…)
+skills/fjo/SKILL.md              agent-facing instructions: commands, exit codes, JSON
+skills/fjo/scripts/install.sh    bootstrap that cargo-builds and PATH-installs the binary
+```
+
+How the pieces connect: the **skill** teaches the agent the full command surface
+(arguments, auto-detection precedence, exit codes, `--json` shapes) and when to use each
+command; the **bootstrap script** covers hosts where `fjo` isn't on `PATH` yet
+(requires rust/cargo); the **manifest** pins name, version and metadata for discovery.
+Everything doubles as plain documentation for non-Hermes agent harnesses.
+
+The manifest and skill are pinned by a test (`plugin_manifest_matches_code`): version,
+the closed v1 schema fields, `SKILL.md` frontmatter and the bootstrap script are
+validated against the code — bumping `Cargo.toml` without touching `plugin.json` fails CI.
 
 ## Usage
 
@@ -166,12 +200,26 @@ cargo build --release # size-optimized, stripped binary
 Project layout:
 
 ```
-src/main.rs   entrypoint: parse once, emit once (human text or JSON)
-src/cli.rs    Cli struct: command surface (setup, clone, status), prompts strictly absent
-src/key.rs    Key struct: key path resolution, auto-detection, ssh-keygen invocation
-src/git.rs    Git struct: git operations via GIT_SSH_COMMAND
-src/status.rs preflight snapshot (keys, git, ssh-keygen, sshpass)
-hermes.json   the manifest that consumers (Hermes) read
+src/main.rs               entrypoint: parse once, emit once (human text or JSON)
+src/cli.rs                Cli struct: command surface (setup, clone, status), prompts strictly absent
+src/key.rs                Key struct: key path resolution, auto-detection, ssh-keygen invocation
+src/git.rs                Git struct: git operations via GIT_SSH_COMMAND
+src/status.rs             preflight snapshot (keys, git, ssh-keygen, sshpass)
+fjo.spec                  rpm packaging spec (prebuilt-binary tarball)
+scripts/package.sh        stages release binary + skill and runs rpmbuild
+scripts/publish.sh        pushes rpm to the forgejo registry + release page
+.forgejo/workflows/       release ci: per-distro build matrix, publish on v* tags
+plugin.json               portable Agent Plugins v1 manifest (Hermes plugin discovery)
+skills/fjo/SKILL.md       agent-facing skill: command reference, exit codes, bootstrap
+skills/fjo/scripts/       install.sh — cargo build + PATH install bootstrap
+```
+
+Local release flow:
+
+```sh
+cargo build --release     # any host: binary, or for rpm:
+scripts/package.sh        # builds fjo-<v>-1.<dist>.<arch>.rpm into target/rpm/
+scripts/publish.sh target/rpm/fjo-*.rpm   # needs FORGEJO_TOKEN
 ```
 
 ## Design notes

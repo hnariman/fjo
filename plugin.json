@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "fjo",
+  "version": "0.1.0",
+  "description": "Passwordless ssh key generation and prompt-free git cloning via a rust CLI. Never prompts, emits JSON on demand, built for agent use.",
+  "homepage": "https://hermesatlas.com/dev/tools-and-toolsets",
+  "repository": "https://git.home/hnariman/fjo",
+  "keywords": ["git", "ssh", "clone", "keys", "devtools"]
+}
