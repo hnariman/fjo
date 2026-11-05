@@ -66,7 +66,7 @@ via xtask (below): run it on each distro family or a matching container and pass
 ### From source
 
 ```sh
-git clone <this-repo> fjo
+git clone https://git.home/hnariman/fjo fjo
 cd fjo
 cargo build --release
 ```
@@ -87,8 +87,8 @@ fjo ships as a portable [Agent Plugins v1](https://agent-plugins.org/specificati
 package — no Python needed — so it installs with Hermes' plugin workflow:
 
 ```sh
-hermes plugins install <owner>/fjo --no-enable   # clone from a git remote
-hermes plugins enable fjo                        # activate skills in sessions
+hermes plugins install https://git.home/hnariman/fjo --no-enable   # clone from the git remote
+hermes plugins enable fjo                                          # activate skills in sessions
 ```
 
 The layout it reads:
